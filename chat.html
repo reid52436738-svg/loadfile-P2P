@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberChat - P2P 多人加密群聊终端</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PeerJS CDN -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+        body {
+            font-family: 'Share Tech Mono', monospace, sans-serif;
+            background-color: #030712;
+            color: #00ff66;
+            overflow-x: hidden;
+        }
+        .glow-box {
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.15);
+            border: 1px solid rgba(168, 85, 247, 0.3);
+        }
+        .glow-text-purple {
+            text-shadow: 0 0 10px rgba(168, 85, 247, 0.6);
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #030712;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #a855f7;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- 背景装饰网格 -->
+    <div class="fixed inset-0 pointer-events-none opacity-10 bg-[linear-gradient(to_right,#a855f7_1px,transparent_1px),linear-gradient(to_bottom,#a855f7_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
+
+    <!-- 顶栏状态 -->
+    <header class="absolute top-4 left-4 right-4 flex justify-between items-center text-xs tracking-widest text-purple-400/75 z-10">
+        <div class="flex items-center space-x-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>
+            <span>SECURE_GROUP_CHAT // P2P</span>
+        </div>
+        <div>
+            [当前用户: <span id="chatUserDisplay" class="text-purple-300 font-bold"></span>]
+            <button onclick="goBackToIndex()" class="ml-4 underline hover:text-purple-300">返回传档主页</button>
+        </div>
+    </header>
+
+    <!-- 主容器 -->
+    <main class="w-full max-w-lg z-10">
+
+        <!-- 1. 聊天室连接配置面板 -->
+        <div id="chatConfigView" class="glow-box bg-black/85 backdrop-blur-md p-8 rounded-2xl space-y-6">
+            <div class="text-center">
+                <h1 class="text-2xl font-bold glow-text-purple text-purple-400">CYBER_CHAT 终端</h1>
+                <p class="text-xs text-purple-500 mt-1">支持点对点私聊，或创建群聊邀请多人加入</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 pt-2">
+                <!-- 原有私聊/单房 -->
+                <button onclick="hostChatRoom('private')" class="p-4 rounded-xl border border-purple-500/50 hover:border-purple-400 bg-purple-950/20 hover:bg-purple-950/40 transition text-center">
+                    <div class="text-xl mb-1">🛡️</div>
+                    <div class="text-sm font-bold text-purple-300">创 建 私 聊 房</div>
+                    <div class="text-[10px] text-purple-500 mt-1">1 对 1 安全加密</div>
+                </button>
+
+                <!-- 新增选项：新建群聊 -->
+                <button onclick="hostChatRoom('group')" class="p-4 rounded-xl border border-pink-500/50 hover:border-pink-400 bg-pink-950/20 hover:bg-pink-950/40 transition text-center">
+                    <div class="text-xl mb-1">👥</div>
+                    <div class="text-sm font-bold text-pink-300">新 建 群 聊</div>
+                    <div class="text-[10px] text-pink-500 mt-1">支持多人加入广播</div>
+                </button>
+            </div>
+
+            <!-- 加入按钮 -->
+            <button onclick="showJoinInput()" class="w-full p-3 rounded-xl border border-indigo-500/50 hover:border-indigo-400 bg-indigo-950/20 hover:bg-indigo-950/40 transition text-center text-indigo-300 font-bold text-sm tracking-wider">
+                🔗 加 入 现 有 房 间 / 群 聊
+            </button>
+
+            <!-- 开房后展示码区域 -->
+            <div id="hostInfoBox" class="hidden text-center py-4 bg-neutral-900/60 rounded-xl border border-purple-950 space-y-2">
+                <p id="hostModeTitle" class="text-xs text-purple-400">您的房间连接码（发给好友）：</p>
+                <div id="myChatRoomCode" class="text-3xl font-extrabold text-purple-300 tracking-widest">------</div>
+                <p id="roomStatusText" class="text-xs text-purple-500 animate-pulse">正在等待成员加入连接...</p>
+            </div>
+
+            <!-- 加入房间输入框区域 -->
+            <div id="joinInfoBox" class="hidden space-y-3 pt-2">
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-indigo-400 mb-1">输入房主的 6 位连接码</label>
+                    <input type="text" id="targetChatCode" maxlength="6" placeholder="例如: 392019" class="w-full bg-neutral-900 border border-indigo-900 text-indigo-300 text-center text-xl tracking-widest px-4 py-3 rounded-lg focus:outline-none uppercase transition">
+                </div>
+                <button onclick="joinChatRoom()" class="w-full bg-indigo-950 hover:bg-indigo-900 border border-indigo-500 text-indigo-300 font-bold py-3 rounded-lg transition tracking-widest">
+                    连 接 进 入 房 间
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. 真实聊天通讯界面 (初始隐藏) -->
+        <div id="chatRoomView" class="hidden glow-box bg-black/90 backdrop-blur-md p-6 rounded-2xl flex flex-col h-[550px]">
+            <!-- 聊天室顶栏 -->
+            <div class="flex justify-between items-center pb-3 border-b border-purple-950 text-xs">
+                <div class="text-purple-400 font-bold">频道模式: <span id="roomModeDisplay" class="text-pink-400">群聊模式</span> | 在线人数: <span id="memberCount" class="text-emerald-400">1</span></div>
+                <button onclick="location.reload()" class="text-red-400 hover:underline">断开退出</button>
+            </div>
+
+            <!-- 聊天消息滚动框 -->
+            <div id="chatMessages" class="flex-1 overflow-y-auto my-4 space-y-3 pr-2 text-xs">
+                <div class="text-center text-purple-600/80 my-2">--- P2P 加密通信频道已就绪 ---</div>
+            </div>
+
+            <!-- 消息输入与发送栏 -->
+            <div class="flex space-x-2 pt-2 border-t border-purple-950">
+                <input type="text" id="messageInput" onkeypress="handleKeypress(event)" placeholder="输入聊天内容..." class="flex-1 bg-neutral-900 border border-purple-900 text-purple-200 px-4 py-3 rounded-lg focus:outline-none focus:border-purple-500 transition text-sm">
+                <button onclick="sendMessage()" class="bg-purple-950 hover:bg-purple-900 border border-purple-500 text-purple-300 font-bold px-6 py-3 rounded-lg transition tracking-wider text-sm">
+                    发 送
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        let currentUser = '';
+        let chatPeer = null;
+        let isHost = false;
+        let roomType = 'private'; // 'private' 或 'group'
+        let clientConn = null;    // 如果我是加入者，这是与房主的连接
+        let hostConnections = []; // 如果我是房主（群主），这是保存所有群成员连接的数组
+
+        window.onload = function() {
+            currentUser = sessionStorage.getItem('current_user');
+            if (!currentUser) {
+                alert("❌ 检测到您尚未登录系统，请先登录！");
+                window.location.href = 'index.html';
+                return;
+            }
+            document.getElementById('chatUserDisplay').innerText = currentUser;
+        };
+
+        function goBackToIndex() {
+            window.location.href = 'index.html';
+        }
+
+        function generateCode() {
+            return Math.floor(100000 + Math.random() * 900000).toString();
+        }
+
+        function showJoinInput() {
+            document.getElementById('joinInfoBox').classList.remove('hidden');
+            document.getElementById('hostInfoBox').classList.add('hidden');
+        }
+
+        // 1. 创建房间（支持私聊或群聊）
+        function hostChatRoom(type) {
+            roomType = type;
+            isHost = true;
+            document.getElementById('hostInfoBox').classList.remove('hidden');
+            document.getElementById('joinInfoBox').classList.add('hidden');
+
+            const code = generateCode();
+            document.getElementById('myChatRoomCode').innerText = code;
+            document.getElementById('hostModeTitle').innerText = (type === 'group') ? "群聊邀请码（发给多位好友）：" : "私聊连接码（发给好友）：";
+
+            if (chatPeer) chatPeer.destroy();
+            chatPeer = new Peer(code);
+
+            chatPeer.on('open', (id) => {
+                document.getElementById('roomStatusText').innerText = `房已建好 (${type === 'group' ? '群聊模式' : '私聊模式'})，等待成员加入...`;
+            });
+
+            // 核心逻辑：作为房主，可以接受多个客户端的连入
+            chatPeer.on('connection', (incomingConn) => {
+                hostConnections.push(incomingConn);
+                updateMemberCount();
+
+                document.getElementById('roomStatusText').innerText = `✅ 有新成员接入，当前总连接数: ${hostConnections.length + 1}`;
+                
+                // 如果是私聊模式，进来一个人直接进入界面
+                if (roomType === 'private') {
+                    setTimeout(() => enterChatInterface(), 800);
+                } else {
+                    // 如果是群聊模式，自动帮房主也切入聊天界面
+                    if (document.getElementById('chatRoomView').classList.contains('hidden')) {
+                        enterChatInterface();
+                    }
+                }
+
+                // 监听该成员发来的消息
+                incomingConn.on('data', (data) => {
+                    if (data.type === 'CHAT') {
+                        // 1. 在自己屏幕显示
+                        appendMessage(data.sender, data.text, false);
+                        // 2. 群主履行职责：将消息广播给群里其他所有成员
+                        broadcastToGroup(data, incomingConn);
+                    }
+                });
+
+                incomingConn.on('close', () => {
+                    hostConnections = hostConnections.filter(c => c !== incomingConn);
+                    updateMemberCount();
+                });
+            });
+        }
+
+        // 2. 加入房间 / 加入群聊
+        function joinChatRoom() {
+            const code = document.getElementById('targetChatCode').value.trim();
+            if (code.length !== 6) {
+                alert("请输入正确的 6 位连接码！");
+                return;
+            }
+
+            isHost = false;
+            if (chatPeer) chatPeer.destroy();
+            chatPeer = new Peer();
+
+            chatPeer.on('open', () => {
+                clientConn = chatPeer.connect(code);
+
+                clientConn.on('open', () => {
+                    enterChatInterface();
+                });
+
+                // 监听来自房主的广播消息
+                clientConn.on('data', (data) => {
+                    if (data.type === 'CHAT') {
+                        appendMessage(data.sender, data.text, false);
+                    }
+                });
+
+                clientConn.on('error', () => {
+                    alert("连接失败，请确认对方的 6 位码是否正确且在线！");
+                });
+            });
+        }
+
+        // 进入聊天主界面
+        function enterChatInterface() {
+            document.getElementById('chatConfigView').classList.add('hidden');
+            document.getElementById('chatRoomView').classList.remove('hidden');
+            document.getElementById('roomModeDisplay').innerText = (roomType === 'group' || hostConnections.length > 1) ? "群聊模式" : "1v1 私聊模式";
+        }
+
+        function updateMemberCount() {
+            const count = isHost ? (hostConnections.length + 1) : 2;
+            document.getElementById('memberCount').innerText = count;
+        }
+
+        // 房主专属：群发广播给除了发送者之外的所有人
+        function broadcastToGroup(data, senderConn) {
+            hostConnections.forEach(conn => {
+                if (conn !== senderConn && conn.open) {
+                    conn.send(data);
+                }
+            });
+        }
+
+        // 发送消息
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const messagePayload = {
+                type: 'CHAT',
+                sender: currentUser,
+                text: text
+            };
+
+            if (isHost) {
+                // 如果我是房主，自己发消息需要广播给所有连进来的群成员
+                hostConnections.forEach(conn => {
+                    if (conn.open) conn.send(messagePayload);
+                });
+            } else {
+                // 如果我是加入者，发送给房主，由房主再转发给大家
+                if (!clientConn || !clientConn.open) {
+                    alert("连接已断开！");
+                    return;
+                }
+                clientConn.send(messagePayload);
+            }
+
+            // 在自己屏幕显示
+            appendMessage(currentUser, text, true);
+            input.value = '';
+        }
+
+        function handleKeypress(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // 渲染聊天气泡
+        function appendMessage(sender, text, isSelf) {
+            const container = document.getElementById('chatMessages');
+            const time = new Date().toLocaleTimeString();
+
+            const bubble = document.createElement('div');
+            bubble.className = `flex flex-col ${isSelf ? 'items-end' : 'items-start'}`;
+
+            bubble.innerHTML = `
+                <div class="text-[10px] text-purple-500 mb-0.5">${sender} <span class="text-neutral-600">${time}</span></div>
+                <div class="px-4 py-2 rounded-xl max-w-[80%] break-words ${isSelf ? 'bg-purple-950/60 border border-purple-800 text-purple-200' : 'bg-neutral-900 border border-neutral-800 text-emerald-300'}">
+                    ${escapeHtml(text)}
+                </div>
+            `;
+
+            container.appendChild(bubble);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+    </script>
+</body>
+</html>
