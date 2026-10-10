@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberMedia - 多媒体视听终端</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+        body { font-family: 'Share Tech Mono', monospace, sans-serif; background-color: #030712; color: #00ff66; overflow-x: hidden; }
+        .glow-box { box-shadow: 0 0 25px rgba(0, 255, 102, 0.2); border: 1px solid rgba(0, 255, 102, 0.4); }
+        .glow-text { text-shadow: 0 0 10px rgba(0, 255, 102, 0.7); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #030712; }
+        ::-webkit-scrollbar-thumb { background: #00ff66; border-radius: 3px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- 背景网格 -->
+    <div class="fixed inset-0 pointer-events-none opacity-10 bg-[linear-gradient(to_right,#00ff66_1px,transparent_1px),linear-gradient(to_bottom,#00ff66_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
+
+    <!-- 顶栏状态 -->
+    <header class="absolute top-4 left-4 right-4 flex justify-between items-center text-xs tracking-widest text-emerald-500/75 z-10">
+        <div class="flex items-center space-x-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>CYBER_MEDIA_PLAYER // MULTIMEDIA</span>
+        </div>
+        <div>
+            <button onclick="window.location.href='index.html'" class="underline hover:text-emerald-300">返回传档主页</button>
+        </div>
+    </header>
+
+    <!-- 主容器 -->
+    <main class="w-full max-w-xl z-10 space-y-6">
+
+        <!-- 终端控制面板 -->
+        <div class="glow-box bg-black/90 backdrop-blur-md p-8 rounded-2xl space-y-6 text-center">
+            <div>
+                <h1 class="text-2xl font-bold glow-text text-emerald-400">赛博视听终端</h1>
+                <p class="text-xs text-emerald-600 mt-1">支持本地导入并在线流畅播放 MP3 / M4A / MP4 / PNG / JPG 等多媒体文件</p>
+            </div>
+
+            <!-- 文件选择器 -->
+            <div class="space-y-3">
+                <label class="block text-xs uppercase tracking-wider text-emerald-500">选择您的媒体文件 (音频/视频/图片)</label>
+                <input type="file" id="mediaInput" accept="audio/*,video/*,image/*" onchange="handleFileSelected(event)" class="w-full text-xs text-emerald-400 border border-emerald-900 rounded-lg p-3 bg-neutral-900 cursor-pointer">
+            </div>
+
+            <!-- 多媒体展示与播放舞台 -->
+            <div id="mediaStage" class="hidden bg-neutral-950 border border-emerald-900/60 p-4 rounded-xl space-y-4">
+                <div id="fileInfoText" class="text-xs text-emerald-300 font-bold truncate">文件名: <span>-</span></div>
+
+                <!-- 1. 音乐/音频播放器 -->
+                <audio id="audioPlayer" controls class="w-full hidden"></audio>
+
+                <!-- 2. 视频播放器 -->
+                <video id="videoPlayer" controls class="w-full max-h-64 rounded-lg hidden mx-auto"></video>
+
+                <!-- 3. 图片预览容器 -->
+                <div id="imageContainer" class="hidden flex justify-center">
+                    <img id="imageViewer" class="max-h-64 rounded-lg border border-emerald-500/40 object-contain">
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        function handleFileSelected(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const stage = document.getElementById('mediaStage');
+            stage.classList.remove('hidden');
+
+            document.querySelector('#fileInfoText span').innerText = file.name;
+
+            const audio = document.getElementById('audioPlayer');
+            const video = document.getElementById('videoPlayer');
+            const imgBox = document.getElementById('imageContainer');
+            const imgViewer = document.getElementById('imageViewer');
+
+            audio.pause();
+            audio.classList.add('hidden');
+            video.pause();
+            video.classList.add('hidden');
+            imgBox.classList.add('hidden');
+
+            const fileUrl = URL.createObjectURL(file);
+
+            if (file.type.startsWith('audio/')) {
+                audio.src = fileUrl;
+                audio.classList.remove('hidden');
+                audio.play();
+            } else if (file.type.startsWith('video/')) {
+                video.src = fileUrl;
+                video.classList.remove('hidden');
+                video.play();
+            } else if (file.type.startsWith('image/')) {
+                imgViewer.src = fileUrl;
+                imgBox.classList.remove('hidden');
+            } else {
+                alert("⚠️ 暂不支持该文件类型的直接预览，您可以前往主页通过 P2P 传输！");
+            }
+        }
+    </script>
+</body>
+</html>
