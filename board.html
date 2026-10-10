@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberBoard - 机密图文档案室</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+        body { font-family: 'Share Tech Mono', monospace, sans-serif; background-color: #030712; color: #00ff66; overflow-x: hidden; }
+        .glow-box { box-shadow: 0 0 20px rgba(0, 255, 102, 0.15); border: 1px solid rgba(0, 255, 102, 0.3); }
+        .glow-text { text-shadow: 0 0 10px rgba(0, 255, 102, 0.6); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #030712; }
+        ::-webkit-scrollbar-thumb { background: #00ff66; border-radius: 3px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4">
+
+    <!-- 背景装饰网格 -->
+    <div class="fixed inset-0 pointer-events-none opacity-10 bg-[linear-gradient(to_right,#00ff66_1px,transparent_1px),linear-gradient(to_bottom,#00ff66_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
+
+    <!-- 自定义弹窗 -->
+    <div id="cyberModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden">
+        <div class="glow-box bg-neutral-950 p-6 rounded-2xl max-w-sm w-full mx-4 text-center space-y-4 border border-emerald-500/60">
+            <div class="text-xs uppercase tracking-widest text-emerald-500">系统提示 // SYSTEM_ALERT</div>
+            <div id="modalMessage" class="text-emerald-300 text-sm leading-relaxed py-2">提示内容</div>
+            <button onclick="closeCyberModal()" class="w-full bg-emerald-950 hover:bg-emerald-900 border border-emerald-500 text-emerald-300 font-bold py-2.5 rounded-lg transition glow-text tracking-widest text-xs">
+                关 闭 窗 口
+            </button>
+        </div>
+    </div>
+
+    <!-- 顶栏 -->
+    <header class="w-full max-w-2xl flex justify-between items-center text-xs tracking-widest text-emerald-500/75 py-4 z-10 border-b border-emerald-950 mb-6">
+        <div class="flex items-center space-x-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>CYBER_BOARD // 云端图文档案室</span>
+        </div>
+        <div>
+            [当前身份: <span id="boardUserDisplay" class="text-emerald-400 font-bold"></span>]
+            <button onclick="window.location.href='index.html'" class="ml-4 underline hover:text-emerald-300">返回主页</button>
+        </div>
+    </header>
+
+    <!-- 主容器 -->
+    <main class="w-full max-w-2xl z-10 space-y-6">
+
+        <!-- 发布表单 -->
+        <div class="glow-box bg-black/85 backdrop-blur-md p-6 rounded-2xl space-y-4">
+            <h2 class="text-lg font-bold glow-text text-emerald-400">上传机密情报 (图文留言)</h2>
+            <textarea id="messageText" rows="3" placeholder="输入你想公开的黑客情报或留言..." class="w-full bg-neutral-900 border border-emerald-900 text-emerald-300 p-3 rounded-lg focus:outline-none focus:border-emerald-500 text-sm"></textarea>
+            
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div class="w-full sm:w-auto">
+                    <label class="block text-[10px] text-emerald-600 mb-1">附加图片 (最大限制 10MB，将存入 Google 云端硬盘)</label>
+                    <input type="file" id="imageInput" accept="image/*" class="text-xs text-emerald-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-950 file:text-emerald-300 hover:file:bg-emerald-900 cursor-pointer">
+                </div>
+                <button onclick="postMessage()" id="postBtn" class="w-full sm:w-auto bg-emerald-950 hover:bg-emerald-900 border border-emerald-500 text-emerald-400 font-bold px-6 py-3 rounded-lg transition glow-text tracking-widest text-xs">
+                    发 布 情 报
+                </button>
+            </div>
+        </div>
+
+        <!-- 留言列表展示区 -->
+        <div class="space-y-4" id="messagesContainer">
+            <div class="text-center text-emerald-600/60 py-8">正在从 Google 云端加载机密档案...</div>
+        </div>
+
+    </main>
+
+    <script>
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby2PFciwbWNzKqH6VPe8Yij7vGR4t6dsQRHSM31fbN4D9GCyWZjTRTAgDxe4sIec-fkeQ/exec";
+        let currentUser = '';
+
+        window.onload = function() {
+            currentUser = sessionStorage.getItem('current_user');
+            if (!currentUser) {
+                showCyberAlert("❌ 请先登录系统！");
+                setTimeout(() => window.location.href = 'index.html', 1500);
+                return;
+            }
+            document.getElementById('boardUserDisplay').innerText = currentUser;
+            loadMessages();
+        };
+
+        function showCyberAlert(msg) {
+            document.getElementById('modalMessage').innerText = msg;
+            document.getElementById('cyberModal').classList.remove('hidden');
+        }
+        function closeCyberModal() { document.getElementById('cyberModal').classList.add('hidden'); }
+
+        // 从 Google 拉取留言与图片
+        function loadMessages() {
+            const callbackName = 'jsonp_cb_' + Math.round(100000 * Math.random());
+            window[callbackName] = function(data) {
+                delete window[callbackName];
+                if (script.parentNode) document.body.removeChild(script);
+                renderMessages(data.messages || []);
+            };
+
+            const script = document.createElement('script');
+            script.src = `${GOOGLE_SCRIPT_URL}?callback=${callbackName}&_t=${Date.now()}`;
+            script.onerror = function() {
+                delete window[callbackName];
+                if (script.parentNode) document.body.removeChild(script);
+                document.getElementById('messagesContainer').innerHTML = '<div class="text-center text-red-500">加载云端档案失败</div>';
+            };
+            document.body.appendChild(script);
+        }
+
+        function renderMessages(msgs) {
+            const container = document.getElementById('messagesContainer');
+            if (msgs.length === 0) {
+                container.innerHTML = '<div class="text-center text-emerald-600/60 py-8">暂无公开情报，快来发布第一条吧！</div>';
+                return;
+            }
+            container.innerHTML = '';
+            // 倒序显示最新的
+            msgs.reverse().forEach(m => {
+                const card = document.createElement('div');
+                card.className = 'glow-box bg-black/80 backdrop-blur-md p-5 rounded-xl space-y-3';
+                
+                let imgHtml = '';
+                if (m.imageUrl) {
+                    imgHtml = `<div class="mt-2"><a href="${m.imageUrl}" target="_blank"><img src="${m.imageUrl}" class="max-h-60 rounded-lg border border-emerald-900 object-cover hover:opacity-95 transition"></a></div>`;
+                }
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-center text-xs text-emerald-600 border-b border-emerald-950 pb-2">
+                        <span>[情报员: <strong class="text-emerald-400">${m.sender}</strong>]</span>
+                        <span>${m.time}</span>
+                    </div>
+                    <div class="text-emerald-300 text-sm whitespace-pre-wrap leading-relaxed">${m.text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+                    ${imgHtml}
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // 发布情报 (含 10MB 大小限制)
+        async function postMessage() {
+            const text = document.getElementById('messageText').value.trim();
+            const fileInput = document.getElementById('imageInput');
+            const file = fileInput.files[0];
+
+            if (!text && !file) return showCyberAlert("情报内容或图片不能同时为空！");
+
+            let imageBase64 = "", imageType = "", imageName = "";
+
+            if (file) {
+                // 10MB 限制校验 (10 * 1024 * 1024 字节)
+                if (file.size > 10 * 1024 * 1024) {
+                    return showCyberAlert("❌ 错误：图片大小超过 10MB 限制！请压缩后上传。");
+                }
+                
+                const base64 = await toBase64(file);
+                imageBase64 = base64;
+                imageType = file.type;
+                imageName = file.name;
+            }
+
+            const btn = document.getElementById('postBtn');
+            btn.innerText = "正在加密并上传至 Google 云端...";
+            btn.disabled = true;
+
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: "postMessage",
+                        sender: currentUser,
+                        text: text,
+                        imageBase64: imageBase64,
+                        imageType: imageType,
+                        imageName: imageName,
+                        time: new Date().toLocaleString()
+                    })
+                });
+
+                showCyberAlert("✅ 情报发布成功并已存入 Google 硬盘！");
+                document.getElementById('messageText').value = '';
+                fileInput.value = '';
+                setTimeout(loadMessages, 1500); // 刷新列表
+            } catch (e) {
+                showCyberAlert("❌ 上传云端失败！");
+            } finally {
+                btn.innerText = "发 布 情 报";
+                btn.disabled = false;
+            }
+        }
+
+        function toBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+    </script>
+</body>
+</html>
