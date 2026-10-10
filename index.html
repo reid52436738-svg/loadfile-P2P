@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberDrop - 严格单设备互斥登录</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PeerJS CDN -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+        body { font-family: 'Share Tech Mono', monospace, sans-serif; background-color: #030712; color: #00ff66; overflow-x: hidden; }
+        .glow-box { box-shadow: 0 0 20px rgba(0, 255, 102, 0.15); border: 1px solid rgba(0, 255, 102, 0.3); }
+        .glow-box-blue { box-shadow: 0 0 25px rgba(0, 210, 255, 0.2); border: 1px solid rgba(0, 210, 255, 0.4); }
+        .glow-text { text-shadow: 0 0 10px rgba(0, 255, 102, 0.6); }
+        .glow-text-blue { text-shadow: 0 0 10px rgba(0, 210, 255, 0.6); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #030712; }
+        ::-webkit-scrollbar-thumb { background: #00ff66; border-radius: 3px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- 背景装饰网格 -->
+    <div class="fixed inset-0 pointer-events-none opacity-10 bg-[linear-gradient(to_right,#00ff66_1px,transparent_1px),linear-gradient(to_bottom,#00ff66_1px,transparent_1px)] bg-[size:4rem_4rem]"></div>
+
+    <!-- 顶栏状态指示器 -->
+    <header class="absolute top-4 left-4 right-4 flex justify-between items-center text-xs tracking-widest text-emerald-500/75 z-10">
+        <div class="flex items-center space-x-2">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>STRICT_SINGLE_SESSION // 在线独占保护</span>
+        </div>
+        <div id="userInfoDisplay" class="hidden flex items-center space-x-2">
+            <span>[用户: <span id="currentQQDisplay" class="text-emerald-400"></span>]</span>
+            <button onclick="logout()" class="bg-neutral-800 hover:bg-neutral-700 border border-emerald-500/40 text-emerald-300 px-2 py-1 rounded transition">登出</button>
+            <button onclick="deleteAccount()" class="bg-red-950/80 hover:bg-red-900 border border-red-500/60 text-red-300 px-2 py-1 rounded transition">注销账户</button>
+        </div>
+    </header>
+
+    <!-- 主容器 -->
+    <main class="w-full max-w-md z-10">
+
+        <!-- 1. 登录/注册 视图区域 -->
+        <div id="authView" class="glow-box bg-black/80 backdrop-blur-md p-8 rounded-2xl relative">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold tracking-wider glow-text text-emerald-400">CYBER_AUTH</h1>
+                <p class="text-xs text-emerald-600 mt-2 tracking-widest">多端云同步与独占登录系统</p>
+            </div>
+
+            <!-- 登录表单 -->
+            <div id="loginFormContainer" class="space-y-4">
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-emerald-500 mb-1">QQ 号 / 用户名</label>
+                    <input type="text" id="loginQQ" placeholder="输入您的 QQ 号" class="w-full bg-neutral-900 border border-emerald-900 text-emerald-300 px-4 py-3 rounded-lg focus:outline-none focus:border-emerald-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-emerald-500 mb-1">主密码</label>
+                    <input type="password" id="loginPass1" placeholder="••••••••" class="w-full bg-neutral-900 border border-emerald-900 text-emerald-300 px-4 py-3 rounded-lg focus:outline-none focus:border-emerald-500 transition">
+                </div>
+                <button onclick="handleLogin()" id="loginBtn" class="w-full mt-2 bg-emerald-950 hover:bg-emerald-900 border border-emerald-500 text-emerald-400 font-bold py-3 rounded-lg transition duration-200 glow-text tracking-widest">
+                    登 录 系 统
+                </button>
+            </div>
+
+            <!-- 注册表单 -->
+            <div id="registerFormContainer" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-emerald-500 mb-1">QQ 号 / 用户名</label>
+                    <input type="text" id="regQQ" placeholder="输入您的 QQ 号" class="w-full bg-neutral-900 border border-emerald-900 text-emerald-300 px-4 py-3 rounded-lg focus:outline-none focus:border-emerald-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-emerald-500 mb-1">设置密码</label>
+                    <input type="password" id="regPass1" placeholder="••••••••" class="w-full bg-neutral-900 border border-emerald-900 text-emerald-300 px-4 py-3 rounded-lg focus:outline-none focus:border-emerald-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-emerald-500 mb-1">确认密码</label>
+                    <input type="password" id="regPass2" placeholder="••••••••" class="w-full bg-neutral-900 border border-emerald-900 text-emerald-300 px-4 py-3 rounded-lg focus:outline-none focus:border-emerald-500 transition">
+                </div>
+                <button onclick="handleRegister()" id="regBtn" class="w-full mt-2 bg-neutral-900 hover:bg-emerald-950 border border-emerald-500 text-emerald-400 font-bold py-3 rounded-lg transition duration-200 glow-text tracking-widest">
+                    注册并存入 Google 表格
+                </button>
+            </div>
+
+            <!-- 底部切换 -->
+            <div class="mt-6 flex justify-end text-xs pt-4 border-t border-emerald-950">
+                <button id="toggleAuthModeBtn" onclick="toggleAuthMode()" class="text-emerald-400 hover:text-emerald-200 font-semibold tracking-wider">
+                    注册新账号 →
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. 主功能菜单 -->
+        <div id="mainMenuView" class="hidden glow-box bg-black/85 backdrop-blur-md p-8 rounded-2xl text-center space-y-6">
+            <div>
+                <h2 class="text-2xl font-bold glow-text text-emerald-400 tracking-wider">P2P 终端就绪</h2>
+                <p class="text-xs text-emerald-600 mt-1">当前账号处于独占在线状态</p>
+            </div>
+            <div class="grid grid-cols-1 gap-4 pt-2">
+                <button onclick="switchView('sendView'); initSender();" class="p-5 rounded-xl border border-emerald-500/50 bg-emerald-950/20 hover:bg-emerald-950/40 flex items-center justify-center space-x-4">
+                    <span class="text-2xl">📤</span>
+                    <div class="text-left">
+                        <div class="text-base font-bold text-emerald-300 glow-text tracking-widest">传 送 文 件</div>
+                        <div class="text-xs text-emerald-600">生成随机码发送 (支持.exe等)</div>
+                    </div>
+                </button>
+                <button onclick="switchView('receiveView')" class="p-5 rounded-xl border border-cyan-500/50 bg-cyan-950/20 hover:bg-cyan-950/40 flex items-center justify-center space-x-4">
+                    <span class="text-2xl">📥</span>
+                    <div class="text-left">
+                        <div class="text-base font-bold text-cyan-300 glow-text-blue tracking-widest">接 收 文 件</div>
+                        <div class="text-xs text-cyan-600">输入对方连接码接收</div>
+                    </div>
+                </button>
+                <button onclick="goToChat()" class="p-5 rounded-xl border border-purple-500/50 bg-purple-950/20 hover:bg-purple-950/40 flex items-center justify-center space-x-4">
+                    <span class="text-2xl">💬</span>
+                    <div class="text-left">
+                        <div class="text-base font-bold text-purple-300 tracking-widest">进 入 聊 天 室</div>
+                        <div class="text-xs text-purple-400">点对点实时加密文字通讯</div>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <!-- 3. 传送文件子视图 -->
+        <div id="sendView" class="hidden glow-box bg-black/85 backdrop-blur-md p-8 rounded-2xl space-y-6">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-bold text-emerald-400 glow-text">传送端配置 (真实 P2P)</h3>
+                <button onclick="switchView('mainMenuView')" class="text-xs text-emerald-600 hover:text-emerald-400 underline">← 返回主菜单</button>
+            </div>
+            <div class="space-y-4">
+                <input type="file" id="fileInput" class="w-full text-xs text-emerald-400 border border-emerald-900 rounded-lg p-2 bg-neutral-900">
+                <div class="text-center py-4 bg-neutral-900/60 rounded-xl border border-emerald-950">
+                    <p class="text-xs text-emerald-500 mb-1">自动生成的 6 位随机连接码：</p>
+                    <div id="roomCodeDisplay" class="text-3xl font-extrabold text-emerald-300 tracking-widest glow-text">初始化中...</div>
+                </div>
+                <div id="sendProgressContainer" class="hidden space-y-2">
+                    <div class="flex justify-between text-xs text-emerald-500">
+                        <span id="sendStatusText">等待连接...</span>
+                        <span id="sendPercentage">0%</span>
+                    </div>
+                    <div class="w-full bg-neutral-900 rounded-full h-2 border border-emerald-950 overflow-hidden">
+                        <div id="sendProgressBar" class="bg-emerald-400 h-full w-0"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. 接收文件子视图 -->
+        <div id="receiveView" class="hidden glow-box-blue bg-black/85 backdrop-blur-md p-8 rounded-2xl space-y-6">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-bold text-cyan-400 glow-text-blue">接收端配置 (真实 P2P)</h3>
+                <button onclick="switchView('mainMenuView')" class="text-xs text-cyan-600 hover:text-cyan-400 underline">← 返回主菜单</button>
+            </div>
+            <div class="space-y-4">
+                <input type="text" id="inputRoomCode" maxlength="6" placeholder="输入 6 位连接码" class="w-full bg-neutral-900 border border-cyan-900 text-cyan-300 text-center text-xl tracking-widest px-4 py-3 rounded-lg focus:outline-none">
+                <button onclick="connectAndReceive()" class="w-full bg-cyan-950 hover:bg-cyan-900 border border-cyan-500 text-cyan-400 font-bold py-3 rounded-lg glow-text-blue">连 接 并 接 收</button>
+                <div id="receiveProgressContainer" class="hidden space-y-2">
+                    <div class="flex justify-between text-xs text-cyan-500">
+                        <span id="receiveStatusText">正在连接...</span>
+                        <span id="receivePercentage">0%</span>
+                    </div>
+                    <div class="w-full bg-neutral-900 rounded-full h-2 border border-cyan-950 overflow-hidden">
+                        <div id="receiveProgressBar" class="bg-cyan-400 h-full w-0"></div>
+                    </div>
+                </div>
+                <div id="downloadLinkContainer" class="hidden pt-2">
+                    <button onclick="saveFileToFolder()" class="w-full bg-cyan-900 border border-cyan-400 text-cyan-200 font-bold py-3 rounded-lg">📂 另存为...</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby2PFciwbWNzKqH6VPe8Yij7vGR4t6dsQRHSM31fbN4D9GCyWZjTRTAgDxe4sIec-fkeQ/exec";
+
+        function getUsersFromGoogle() {
+            return new Promise((resolve) => {
+                const callbackName = 'jsonp_cb_' + Math.round(100000 * Math.random());
+                window[callbackName] = function(data) {
+                    delete window[callbackName];
+                    if (script.parentNode) document.body.removeChild(script);
+                    resolve(data.users || []);
+                };
+
+                const script = document.createElement('script');
+                script.src = `${GOOGLE_SCRIPT_URL}?callback=${callbackName}&_t=${Date.now()}`;
+                script.onerror = function() {
+                    delete window[callbackName];
+                    if (script.parentNode) document.body.removeChild(script);
+                    resolve([]);
+                };
+                document.body.appendChild(script);
+            });
+        }
+
+        let isRegisterMode = false;
+        function toggleAuthMode() {
+            isRegisterMode = !isRegisterMode;
+            document.getElementById('loginFormContainer').classList.toggle('hidden');
+            document.getElementById('registerFormContainer').classList.toggle('hidden');
+            document.getElementById('toggleAuthModeBtn').innerText = isRegisterMode ? "← 返回登录" : "注册新账号 →";
+        }
+
+        async function handleRegister() {
+            const qq = document.getElementById('regQQ').value.trim();
+            const p1 = document.getElementById('regPass1').value;
+            const p2 = document.getElementById('regPass2').value;
+
+            if (!qq || !p1 || !p2) return alert("所有字段不能为空！");
+            if (p1 !== p2) return alert("两次输入的密码不一致！");
+
+            const btn = document.getElementById('regBtn');
+            btn.innerText = "正在写入 Google 表格...";
+            btn.disabled = true;
+
+            const users = await getUsersFromGoogle();
+            if (users.find(u => String(u.qq) === qq)) {
+                btn.innerText = "注册并存入 Google 表格";
+                btn.disabled = false;
+                return alert("❌ 该用户名已存在！");
+            }
+
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: "register", qq: qq, pass1: p1, regTime: new Date().toLocaleString() })
+                });
+                alert("✅ 注册成功！");
+                toggleAuthMode();
+            } catch (e) {
+                alert("写入云端失败！");
+            } finally {
+                btn.innerText = "注册并存入 Google 表格";
+                btn.disabled = false;
+            }
+        }
+
+        async function handleLogin() {
+            const qq = document.getElementById('loginQQ').value.trim();
+            const p1 = document.getElementById('loginPass1').value;
+
+            if (!qq || !p1) return alert("请输入账号和密码！");
+
+            const btn = document.getElementById('loginBtn');
+            btn.innerText = "正在验证云端状态...";
+            btn.disabled = true;
+
+            const users = await getUsersFromGoogle();
+            btn.innerText = "登 录 系 统";
+            btn.disabled = false;
+
+            const user = users.find(u => String(u.qq) === qq && String(u.pass1) === p1);
+            if (!user) {
+                return alert("登录失败：账号不存在或密码错误！");
+            }
+
+            // 核心：检查云端状态，如果该账号已经是 ONLINE 状态，说明已经在其他设备登录
+            if (user.status === "ONLINE") {
+                return alert(`⚠️ 拒绝登录：账号 [${qq}] 当前已经在其他设备（或另一个网页端）处于在线状态！\n不允许双端同时登录同一个账号。`);
+            }
+
+            // 将云端状态变更为 ONLINE
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: "updateStatus", qq: qq, status: "ONLINE" })
+                });
+            } catch(e) {}
+
+            sessionStorage.setItem('current_user', qq);
+            enterMainApp(qq);
+        }
+
+        function enterMainApp(qq) {
+            document.getElementById('authView').classList.add('hidden');
+            document.getElementById('mainMenuView').classList.remove('hidden');
+            document.getElementById('userInfoDisplay').classList.remove('hidden');
+            document.getElementById('currentQQDisplay').innerText = qq;
+        }
+
+        async function logout() {
+            const qq = sessionStorage.getItem('current_user');
+            if (qq) {
+                try {
+                    await fetch(GOOGLE_SCRIPT_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: "updateStatus", qq: qq, status: "OFFLINE" })
+                    });
+                } catch(e) {}
+            }
+            sessionStorage.removeItem('current_user'); 
+            location.reload(); 
+        }
+
+        async function deleteAccount() {
+            const currentQQ = sessionStorage.getItem('current_user');
+            if (!currentQQ) return;
+            if (confirm(`⚠️ 确定要注销当前账号 [${currentQQ}] 吗？\n(提示：请顺便去你的 Google 表格里把对应的那一行数据删除)`)) {
+                try {
+                    await fetch(GOOGLE_SCRIPT_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: "updateStatus", qq: currentQQ, status: "OFFLINE" })
+                    });
+                } catch(e) {}
+                sessionStorage.removeItem('current_user');
+                alert("账户已注销。");
+                location.reload();
+            }
+        }
+
+        function switchView(id) {
+            document.getElementById('mainMenuView').classList.add('hidden');
+            document.getElementById('sendView').classList.add('hidden');
+            document.getElementById('receiveView').classList.add('hidden');
+            document.getElementById(id).classList.remove('hidden');
+        }
+        function goToChat() { window.location.href = 'chat.html'; }
+
+        // P2P 传输逻辑
+        let peer = null, localRoomCode = '', receivedFileBlob = null, receivedFileName = "downloaded_file.bin";
+        function generateRoomCode() { return Math.floor(100000 + Math.random() * 900000).toString(); }
+
+        function initSender() {
+            localRoomCode = generateRoomCode();
+            document.getElementById('roomCodeDisplay').innerText = localRoomCode;
+            document.getElementById('sendProgressContainer').classList.remove('hidden');
+            if (peer) peer.destroy();
+            peer = new Peer(localRoomCode);
+            peer.on('open', id => { document.getElementById('sendStatusText').innerText = "等待接收端输入码 [" + id + "]"; });
+            peer.on('connection', conn => {
+                conn.on('data', data => {
+                    if (data === 'REQUEST_FILE') {
+                        const fileInput = document.getElementById('fileInput');
+                        if (!fileInput.files[0]) return conn.send({ type: 'ERROR', message: '未选择文件' });
+                        const file = fileInput.files[0];
+                        conn.send({ type: 'META', name: file.name, size: file.size, fileType: file.type });
+                        const CHUNK_SIZE = 16384, reader = new FileReader(); let offset = 0;
+                        reader.onload = e => {
+                            conn.send({ type: 'CHUNK', buffer: e.target.result, offset: offset });
+                            offset += e.target.result.byteLength;
+                            const percent = Math.round((offset / file.size) * 100);
+                            document.getElementById('sendProgressBar').style.width = percent + '%';
+                            document.getElementById('sendPercentage').innerText = percent + '%';
+                            if (offset < file.size) readNextChunk();
+                            else document.getElementById('sendStatusText').innerText = "✅ 传输成功！";
+                        };
+                        function readNextChunk() { reader.readAsArrayBuffer(file.slice(offset, offset + CHUNK_SIZE)); }
+                        readNextChunk();
+                    }
+                });
+            });
+        }
+
+        function connectAndReceive() {
+            const code = document.getElementById('inputRoomCode').value.trim();
+            if (code.length !== 6) return alert("请输入 6 位连接码！");
+            document.getElementById('receiveProgressContainer').classList.remove('hidden');
+            const clientPeer = new Peer();
+            clientPeer.on('open', () => {
+                const conn = clientPeer.connect(code);
+                conn.on('open', () => { conn.send('REQUEST_FILE'); });
+                let fileBuffer = [], receivedSize = 0, fileMeta = null;
+                conn.on('data', data => {
+                    if (data.type === 'META') { fileMeta = data; receivedFileName = data.name; }
+                    else if (data.type === 'CHUNK') {
+                        fileBuffer.push(data.buffer); receivedSize += data.buffer.byteLength;
+                        const percent = Math.round((receivedSize / fileMeta.size) * 100);
+                        document.getElementById('receiveProgressBar').style.width = percent + '%';
+                        document.getElementById('receivePercentage').innerText = percent + '%';
+                        if (receivedSize >= fileMeta.size) {
+                            receivedFileBlob = new Blob(fileBuffer, { type: fileMeta.fileType || 'application/octet-stream' });
+                            document.getElementById('receiveStatusText').innerText = "✅ 传输成功！";
+                            document.getElementById('downloadLinkContainer').classList.remove('hidden');
+                        }
+                    }
+                });
+            });
+        }
+
+        async function saveFileToFolder() {
+            if (!receivedFileBlob) return;
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const handle = await window.showSaveFilePicker({ suggestedName: receivedFileName });
+                    const writable = await handle.createWritable();
+                    await writable.write(receivedFileBlob);
+                    await writable.close();
+                    return alert("文件已保存！");
+                } catch (err) {}
+            }
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(receivedFileBlob);
+            a.download = receivedFileName;
+            a.click();
+        }
+
+        window.onload = function() {
+            const activeUser = sessionStorage.getItem('current_user');
+            if (activeUser) enterMainApp(activeUser);
+        };
+    </script>
+</body>
+</html>
