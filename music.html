@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lo-Fi Music Box - 极简音乐盒</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background-color: #f7f9fc;
+            color: #334155;
+            min-height: 100vh;
+        }
+        .clean-card {
+            background: #ffffff;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .piano-key {
+            transition: all 0.1s ease;
+        }
+        .piano-key:active, .piano-key.active {
+            background-color: #cbd5e1;
+            transform: translateY(2px);
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center p-4">
+
+    <!-- 顶栏状态 -->
+    <header class="absolute top-4 left-4 right-4 flex justify-between items-center text-xs tracking-wide text-slate-500 z-10 max-w-2xl mx-auto px-4">
+        <div class="flex items-center space-x-2">
+            <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            <span class="font-semibold">AUDIO_SYNTHESIZER // 极简音乐盒</span>
+        </div>
+        <div>
+            <button onclick="window.location.href='index.html'" class="hover:text-slate-800 underline transition">返回主页</button>
+        </div>
+    </header>
+
+    <!-- 主容器 -->
+    <main class="w-full max-w-xl z-10 space-y-6 mt-12">
+
+        <!-- 播放控制台面板 -->
+        <div class="clean-card p-8 rounded-2xl space-y-6 text-center">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800">Lo-Fi 电子琴与音乐盒</h1>
+                <p class="text-xs text-slate-400 mt-1">无需上传文件，点击下方琴键弹奏，或点击自动播放治愈旋律</p>
+            </div>
+
+            <!-- 自动播放控制区 -->
+            <div class="flex justify-center items-center space-x-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <button onclick="playPresetSong('twinkle')" class="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold rounded-lg text-xs transition">
+                    ✨ 播放小星星
+                </button>
+                <button onclick="playPresetSong('joy')" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg text-xs transition shadow-sm">
+                    🎵 播放欢乐颂
+                </button>
+                <button onclick="stopSong()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg text-xs transition">
+                    ⏹ 停止播放
+                </button>
+            </div>
+
+            <!-- 虚拟钢琴键盘 (C4 - C5) -->
+            <div class="grid grid-cols-8 gap-2 pt-2">
+                <button onclick="playTone(261.63, this)" class="piano-key h-32 bg-white border-2 border-slate-200 rounded-xl flex flex-col justify-end pb-3 font-bold text-slate-600 shadow-sm">
+                    <span>C</span><span class="text-[10px] text-slate-400">1</span>
+                </button>
+                <button onclick="playTone(293.66, this)" class="piano-key h-32 bg-white border-2 border-slate-200 rounded-xl flex flex-col justify-end pb-3 font-bold text-slate-600 shadow-sm">
+                    <span>D</span><span class="text-[10px] text-slate-400">2</span>
+                </button>
+                <button onclick="playTone(329.63, this)" class="piano-key h-32 bg-white border-2 border-slate-200 rounded-xl flex flex-col justify-end pb-3 font-bold text-slate-600 shadow-sm">
+                    <span>E</span><span class="text-[10px] text-slate-400">3</span>
+                </button>
+                <button onclick="playTone(349.23, this)" class="piano-key h-32 bg-white border-2 border-slate-200 rounded-xl flex flex-col justify-end pb-3 font-bold text-slate-600 shadow-sm">
+                    <span>F</span><span class="text-[10px] text-slate-400">4</span>
+                </button>
+                <button onclick="playTone(392.00, this)" class="piano-key h-32 bg-white border-2 border-slate-200 rounded-xl flex flex-col justify-end pb-3 font-bold text-slate-600 shadow-sm">
+                    <span>G</span><span class="text-[10px] text-slate-400">5</span>
+                </button>
+                <button onclick="playTone(440.00, this)" class="piano-key h-32 bg-white border-2 border-slate-200 rounded-xl flex flex-col justify-end pb-3 font-bold text-slate-600 shadow-sm">
+                    <span>A</span><span class="text-[10px] text-slate-400">6</span>
+                </button>
+                <button onclick="playTone(493.88, this)" class="piano-key h-32 bg-white border-2 border-slate-200 rounded-xl flex flex-col justify-end pb-3 font-bold text-slate-600 shadow-sm">
+                    <span>B</span><span class="text-[10px] text-slate-400">7</span>
+                </button>
+                <button onclick="playTone(523.25, this)" class="piano-key h-32 bg-slate-100 border-2 border-slate-200 rounded-xl flex flex-col justify-end pb-3 font-bold text-slate-700 shadow-sm">
+                    <span>C</span><span class="text-[10px] text-slate-400">8</span>
+                </button>
+            </div>
+            <p class="text-[11px] text-slate-400 text-center">提示：网页音频采用纯浏览器内核合成，无广告无加载延迟。</p>
+        </div>
+
+    </main>
+
+    <script>
+        let audioCtx = null;
+        let currentTimer = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playTone(freq, element = null) {
+            initAudio();
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            if (element) {
+                element.classList.add('active');
+                setTimeout(() => element.classList.remove('active'), 150);
+            }
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.8);
+        }
+
+        const notes = {
+            C: 261.63, D: 293.66, E: 329.63, F: 349.23,
+            G: 392.00, A: 440.00, B: 493.88, C5: 523.25
+        };
+
+        const songs = {
+            twinkle: [
+                {n: 'C', t: 400}, {n: 'C', t: 400}, {n: 'G', t: 400}, {n: 'G', t: 400},
+                {n: 'A', t: 400}, {n: 'A', t: 400}, {n: 'G', t: 800},
+                {n: 'F', t: 400}, {n: 'F', t: 400}, {n: 'E', t: 400}, {n: 'E', t: 400},
+                {n: 'D', t: 400}, {n: 'D', t: 400}, {n: 'C', t: 800}
+            ],
+            joy: [
+                {n: 'E', t: 300}, {n: 'E', t: 300}, {n: 'F', t: 300}, {n: 'G', t: 300},
+                {n: 'G', t: 300}, {n: 'F', t: 300}, {n: 'E', t: 300}, {n: 'D', t: 300},
+                {n: 'C', t: 300}, {n: 'C', t: 300}, {n: 'D', t: 300}, {n: 'E', t: 300},
+                {n: 'E', t: 450}, {n: 'D', t: 150}, {n: 'D', t: 600}
+            ]
+        };
+
+        function playPresetSong(songKey) {
+            stopSong();
+            const song = songs[songKey];
+            if (!song) return;
+
+            let index = 0;
+            function nextNote() {
+                if (index < song.length) {
+                    let item = song[index];
+                    playTone(notes[item.n]);
+                    index++;
+                    currentTimer = setTimeout(nextNote, item.t);
+                }
+            }
+            nextNote();
+        }
+
+        function stopSong() {
+            if (currentTimer) {
+                clearTimeout(currentTimer);
+                currentTimer = null;
+            }
+        }
+    </script>
+</body>
+</html>
